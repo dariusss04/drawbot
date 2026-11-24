@@ -1,0 +1,7 @@
+streamlit==1.66.1
+numpy==2.4.6
+svgpathtools==1.8.0
+shapely==2.1.2
+webcolors==25.10.0
+defusedxml==0.7.1
+robodk==6.0.2

@@ -1,0 +1,85 @@
+{
+  "data_path": "data/sample_strokes.json",
+  "robot_name": "UR5e",
+  "board_frame": "BoardFrame",
+  "tool_name": "PenTCP",
+  "orientation_target": "Approach_01",
+  "program_name": "SVG_Draw_JSON",
+  "target_frame_name": "SVG_JSON_Targets",
+  "lift_z_mm": -80.0,
+  "draw_z_mm": 0.0,
+  "linear_speed_mm_s": 20,
+  "joint_speed_deg_s": 30,
+  "linear_accel_mm_s2": 100,
+  "joint_accel_deg_s2": 60,
+  "pen_change_mode": "stub",
+  "hardware": {
+    "gripper_name": "RobotiQ Hand-E Gripper",
+    "mount_frame_name": "RobotiQ Hand-E Gripper Base",
+    "mount_xyz_mm": [
+      0,
+      0,
+      0
+    ],
+    "pen_tcp_xyz_mm": [
+      0,
+      0,
+      280
+    ],
+    "initial_jaw_opening_mm": 10
+  },
+  "palette": [
+    {
+      "name": "Black",
+      "hex": "#000000",
+      "program": "ChangePen_Black"
+    },
+    {
+      "name": "Purple",
+      "hex": "#800080",
+      "program": "ChangePen_Purple"
+    },
+    {
+      "name": "Orange",
+      "hex": "#ffa500",
+      "program": "ChangePen_Orange"
+    },
+    {
+      "name": "Green",
+      "hex": "#008000",
+      "program": "ChangePen_Green"
+    }
+  ],
+  "motion": {
+    "draw_speed_mm_s": 20,
+    "pen_down_speed_mm_s": 20,
+    "retract_speed_mm_s": 20,
+    "travel_speed_mm_s": 20,
+    "draw_accel_mm_s2": 100,
+    "pen_down_accel_mm_s2": 100,
+    "retract_accel_mm_s2": 100,
+    "travel_accel_mm_s2": 100,
+    "joint_speed_deg_s": 30,
+    "joint_accel_deg_s2": 60,
+    "approach_clearance_mm": 80,
+    "blend_radius_mm": 0,
+    "travel_strategy": "retract_then_checked_joint"
+  },
+  "home": {
+    "board_xyz_mm": [
+      150.0,
+      150.0,
+      -150.0
+    ],
+    "seed_joints_deg": [
+      77.5,
+      -147.7,
+      -43.0,
+      -210.5,
+      -89.4,
+      -173.5
+    ],
+    "park_upright": true
+  },
+  "board_object": "Board & image"
+}

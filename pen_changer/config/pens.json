@@ -1,0 +1,6 @@
+{
+    "black": {"slot": 0, "color": [0.1, 0.1, 0.1, 1]},
+    "red":   {"slot": 1, "color": [1, 0, 0, 1]},
+    "blue":  {"slot": 2, "color": [0, 0, 1, 1]},
+    "green": {"slot": 3, "color": [0, 0.7, 0, 1]}
+}

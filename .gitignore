@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+
+logs/
+exports/
+backups/
+output/
+programs/
+calibration/runs/
+stations/*_validated.rdk
+pen_changer/config/stand_calibration.json

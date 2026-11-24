@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #f6f7f8; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  #wrap { padding: 8px; outline: none; touch-action: none; }
+  #wrap:focus-visible { outline: 2px solid #16181b; outline-offset: -2px; }
+  svg { display: block; width: 100%; height: auto; max-height: 640px; margin: 0 auto; user-select: none; }
+  .surface { fill: #ffffff; stroke: #b9bec4; stroke-width: .6; }
+  .gline { stroke: #eef0f2; stroke-width: .3; }
+  .gline.major { stroke: #d8dce0; stroke-width: .45; }
+  .marginrect { fill: none; stroke: #c7832b; stroke-width: .5; stroke-dasharray: 3 2; }
+  .lbl { fill: #6a6f76; }
+  .sel { fill: transparent; stroke: #3a3f45; stroke-width: .6; stroke-dasharray: 2.5 1.5; cursor: move; }
+  .sel.bad { stroke: #b86a10; }
+  .handle { fill: #ffffff; stroke: #3a3f45; stroke-width: .7; }
+  .h-tl, .h-br { cursor: nwse-resize; } .h-tr, .h-bl { cursor: nesw-resize; }
+  .dim { fill: #3a3f45; }
+  .travel { fill: none; stroke: #6b7886; stroke-width: .5; stroke-dasharray: 2 1.6; opacity: .85; }
+  .ink { fill: none; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+  .dragging #path { display: none; }
+  .dragging #artLayer { display: inline !important; }
+</style>
+</head>
+<body>
+<div id="wrap" tabindex="0" aria-label="Board. Drag the drawing to move it, drag a corner to scale it. Arrow keys move it by 1 mm, with Shift by 10 mm.">
+  <svg id="board" xmlns="http://www.w3.org/2000/svg">
+    <rect class="surface" id="surface"></rect>
+    <g id="grid"></g>
+    <rect class="marginrect" id="marginRect"></rect>
+    <g id="labels"></g>
+    <g id="artLayer"><svg id="art" overflow="visible" preserveAspectRatio="none"></svg></g>
+    <g id="path"></g>
+    <rect class="sel" id="sel"></rect>
+    <rect class="handle h-tl" data-h="tl"></rect><rect class="handle h-tr" data-h="tr"></rect>
+    <rect class="handle h-bl" data-h="bl"></rect><rect class="handle h-br" data-h="br"></rect>
+    <text class="dim" id="dim"></text>
+  </svg>
+</div>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const board = $("board");
+let A = null;            // last args from Python
+let P = null;            // current placement {x, y, w}
+let artKey = null;       // to avoid re-inserting the same artwork
+
+function send(type, data) { window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type }, data), "*"); }
+function setValue() { send("streamlit:setComponentValue", { value: { x: P.x, y: P.y, width: P.w, nonce: Date.now() }, dataType: "json" }); }
+function setHeight() { send("streamlit:setFrameHeight", { height: Math.ceil(document.body.scrollHeight) }); }
+window.addEventListener("message", (e) => { if (e.data && e.data.type === "streamlit:render") render(e.data.args); });
+window.addEventListener("resize", setHeight);
+send("streamlit:componentReady", { apiVersion: 1 });
+
+function el(tag, attrs, cls) { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (cls) n.setAttribute("class", cls); return n; }
+function txt(x, y, s, anchor, fs, fill) { const t = el("text", { x, y, "text-anchor": anchor }, "lbl"); t.style.fontSize = fs + "px"; if (fill) t.style.fill = fill; t.textContent = s; return t; }
+const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+
+function drawBoard() {
+  const { w: W, h: H, margin: m } = A.board, pad = Math.max(W, H) * 0.07;
+  board.setAttribute("viewBox", `${-pad} ${-pad} ${W + pad * 1.6} ${H + pad * 1.6}`);
+  Object.entries({ x: 0, y: 0, width: W, height: H }).forEach(([k, v]) => $("surface").setAttribute(k, v));
+  Object.entries({ x: m, y: m, width: Math.max(0, W - 2 * m), height: Math.max(0, H - 2 * m) }).forEach(([k, v]) => $("marginRect").setAttribute(k, v));
+  $("marginRect").style.display = m > 0 ? "" : "none";
+  const g = $("grid"); g.innerHTML = "";
+  const step = W > 800 || H > 800 ? 50 : 10, major = step * 5;
+  for (let x = 0; x <= W + 1e-6; x += step) g.append(el("line", { x1: x, y1: 0, x2: x, y2: H }, x % major === 0 ? "gline major" : "gline"));
+  for (let y = 0; y <= H + 1e-6; y += step) g.append(el("line", { x1: 0, y1: y, x2: W, y2: y }, y % major === 0 ? "gline major" : "gline"));
+  const L = $("labels"); L.innerHTML = "";
+  const fs = Math.max(W, H) / 50, a = Math.max(W, H) * 0.08, aw = Math.max(W, H) / 250;
+  for (let x = 0; x <= W + 1e-6; x += major) L.append(txt(x, -fs * 0.7, x, "middle", fs));
+  for (let y = major; y <= H + 1e-6; y += major) L.append(txt(-fs * 0.6, y + fs * 0.35, y, "end", fs));
+  const ax = el("line", { x1: 0, y1: 0, x2: a, y2: 0 }); ax.style.stroke = "#c0392b"; ax.style.strokeWidth = aw;
+  const ay = el("line", { x1: 0, y1: 0, x2: 0, y2: a }); ay.style.stroke = "#23864a"; ay.style.strokeWidth = aw;
+  L.append(ax, ay, txt(a + fs * 0.4, fs * 0.35, "x", "start", fs, "#c0392b"), txt(fs * 0.4, a + fs * 0.9, "y", "start", fs, "#23864a"));
+  const home = el("circle", { cx: 0, cy: 0, r: fs * 0.35 }); home.style.fill = "#16181b"; L.append(home);
+  const hs = Math.max(W, H) * 0.022;
+  document.querySelectorAll(".handle").forEach((h) => { h.setAttribute("width", hs); h.setAttribute("height", hs); });
+  $("dim").style.fontSize = fs * 1.05 + "px";
+}
+
+function drawArt() {
+  const key = A.art.key;
+  const art = $("art");
+  if (key !== artKey) {
+    artKey = key;
+    art.innerHTML = "";
+    const doc = new DOMParser().parseFromString(A.art.markup, "image/svg+xml");
+    const root = doc.documentElement;
+    const g = el("g", {});
+    ["fill", "stroke", "stroke-width", "style"].forEach((k) => { if (root.getAttribute(k)) g.setAttribute(k, root.getAttribute(k)); });
+    [...root.childNodes].forEach((c) => g.append(document.importNode(c, true)));
+    art.append(g);
+    art.setAttribute("viewBox", A.art.bbox.join(" "));
+  }
+  art.querySelectorAll("[data-sid]").forEach((n) => {
+    const c = A.recolor[n.getAttribute("data-sid")];
+    if (!c) return;
+    const cs = getComputedStyle(n);
+    if (cs.stroke && cs.stroke !== "none") n.style.stroke = c;
+    if (cs.fill && cs.fill !== "none") n.style.fill = c;
+  });
+}
+
+function drawPath() {
+  const g = $("path"); g.innerHTML = "";
+  const pts = (arr) => arr.map((q) => `${q[0].toFixed(2)},${q[1].toFixed(2)}`).join(" ");
+  let pos = [0, 0];
+  A.strokes.forEach((s) => { g.append(el("polyline", { points: pts([pos, s.p[0]]) }, "travel")); pos = s.p[s.p.length - 1]; });
+  if (A.strokes.length) g.append(el("polyline", { points: pts([pos, [0, 0]]) }, "travel"));
+  A.strokes.forEach((s) => { const l = el("polyline", { points: pts(s.p) }, "ink"); l.style.stroke = s.c; g.append(l); });
+}
+
+function placeSel() {
+  const h = P.w * A.aspect, { w: W, h: H, margin: m } = A.board;
+  const art = $("art");
+  Object.entries({ x: P.x, y: P.y, width: P.w, height: h }).forEach(([k, v]) => { art.setAttribute(k, v); $("sel").setAttribute(k, v); });
+  const bad = P.x < m - 1e-6 || P.y < m - 1e-6 || P.x + P.w > W - m + 1e-6 || P.y + h > H - m + 1e-6;
+  $("sel").classList.toggle("bad", bad);
+  const hs = +document.querySelector(".handle").getAttribute("width");
+  const pos = { tl: [P.x, P.y], tr: [P.x + P.w, P.y], bl: [P.x, P.y + h], br: [P.x + P.w, P.y + h] };
+  document.querySelectorAll(".handle").forEach((n) => { const [cx, cy] = pos[n.dataset.h]; n.setAttribute("x", cx - hs / 2); n.setAttribute("y", cy - hs / 2); });
+  const d = $("dim"); d.setAttribute("x", P.x); d.setAttribute("y", P.y - hs); d.textContent = `${f1(P.w)} × ${f1(h)} mm`;
+}
+
+function clamp() {
+  const { w: W, h: H } = A.board, ar = A.aspect;
+  P.w = Math.min(Math.max(P.w, 5), Math.min(W, H / ar));
+  P.x = Math.min(Math.max(P.x, 0), W - P.w);
+  P.y = Math.min(Math.max(P.y, 0), H - P.w * ar);
+}
+
+function render(args) {
+  if (drag) return;                 // never jump while the user is dragging
+  A = args;
+  P = { x: args.place.x, y: args.place.y, w: args.place.width };
+  drawBoard(); drawArt(); drawPath();
+  $("artLayer").style.display = A.view === "path" ? "none" : "";
+  $("path").style.display = A.view === "path" ? "" : "none";
+  placeSel();
+  setHeight();
+}
+
+function boardPoint(e) { const pt = board.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(board.getScreenCTM().inverse()); }
+let drag = null;
+board.addEventListener("pointerdown", (e) => {
+  if (!A) return;
+  const t = e.target, Q = boardPoint(e), h = P.w * A.aspect;
+  if (t.classList.contains("handle")) {
+    const c = t.dataset.h;
+    const anchor = { tr: [P.x, P.y + h], tl: [P.x + P.w, P.y + h], br: [P.x, P.y], bl: [P.x + P.w, P.y] }[c];   // opposite corner stays put
+    drag = { mode: "scale", anchor, sx: c.includes("r") ? 1 : -1, sy: c.includes("b") ? 1 : -1 };
+  } else if (t.id === "sel" || t.closest("#art")) {
+    drag = { mode: "move", start: Q, x0: P.x, y0: P.y };
+  } else return;
+  board.setPointerCapture(e.pointerId);
+  $("wrap").classList.add("dragging");
+  e.preventDefault();
+});
+board.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const Q = boardPoint(e);
+  if (drag.mode === "move") { P.x = drag.x0 + Q.x - drag.start.x; P.y = drag.y0 + Q.y - drag.start.y; }
+  else {
+    const [ax, ay] = drag.anchor, ar = A.aspect, { w: W, h: H } = A.board;
+    const w = Math.max(5, drag.sx * (Q.x - ax), drag.sy * (Q.y - ay) / ar);
+    const wMax = Math.min(drag.sx > 0 ? W - ax : ax, (drag.sy > 0 ? H - ay : ay) / ar);
+    P.w = Math.min(w, wMax);
+    P.x = drag.sx > 0 ? ax : ax - P.w;
+    P.y = drag.sy > 0 ? ay : ay - P.w * ar;
+  }
+  clamp(); placeSel();
+});
+function endDrag() { if (!drag) return; drag = null; $("wrap").classList.remove("dragging"); setValue(); }
+board.addEventListener("pointerup", endDrag);
+board.addEventListener("pointercancel", endDrag);
+
+let keyTimer;
+$("wrap").addEventListener("keydown", (e) => {
+  if (!A) return;
+  const d = e.shiftKey ? 10 : 1;
+  const k = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d] }[e.key];
+  if (!k) return;
+  e.preventDefault(); P.x += k[0]; P.y += k[1]; clamp(); placeSel();
+  clearTimeout(keyTimer); keyTimer = setTimeout(setValue, 350);
+});
+</script>
+</body>
+</html>

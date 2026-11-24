@@ -1,0 +1,184 @@
+def teach_whiteboard():
+  HOST = "192.168.0.10"
+  PORT = 30010
+  TCP_PEN   = p[0, 0, 0.275, 0, 0, 0]
+  TCP_NOPEN = p[0, 0, 0.155, 0, 0, 0]
+
+  global USE_SCRIPT_FREEDRIVE = True
+
+  global USE_GRIPPER = True
+  global STILL_LIMIT = 0.003
+
+  global DO_STAND = True
+  global DO_BOARD = True
+  global GO_HOME = False
+  global HOME_Q = [0, -1.5708, 0, -1.5708, 0, 0]
+  global HOME_SPEED = 0.25
+  global HOME_ACCEL = 0.3
+
+  def send(label, tcpname, joints, pose, tcp):
+    msg = str_cat(label, ";")
+    msg = str_cat(msg, tcpname)
+    msg = str_cat(msg, ";")
+    msg = str_cat(msg, to_str(joints))
+    msg = str_cat(msg, ";")
+    msg = str_cat(msg, to_str(pose))
+    msg = str_cat(msg, ";")
+    msg = str_cat(msg, to_str(tcp))
+    socket_send_line(msg, "laptop")
+  end
+
+  def record(label, tcpname, text):
+    taken = False
+    while not taken:
+      if USE_SCRIPT_FREEDRIVE:
+        freedrive_mode()
+      end
+      popup(text, str_cat(tcpname, ": hold Freedrive, move, release, Continue"), False, False, blocking=True)
+      if USE_SCRIPT_FREEDRIVE:
+        end_freedrive_mode()
+      end
+      sleep(0.5)
+      if norm(get_actual_tcp_speed()) < STILL_LIMIT:
+        taken = True
+      else:
+        popup("Arm is still moving. Release Freedrive and keep the arm still, then try again.", "Not recorded", True, False, blocking=True)
+      end
+    end
+    pose = get_actual_tcp_pose()
+    send(label, tcpname, get_actual_joint_positions(), pose, get_tcp_offset())
+    return pose
+  end
+
+  def cross(a, b):
+    return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
+  end
+
+  def unit(v):
+    n = norm(v)
+    return [v[0]/n, v[1]/n, v[2]/n]
+  end
+
+  def plane_pose(a, b, c):
+    x = unit([b[0]-a[0], b[1]-a[1], b[2]-a[2]])
+    z = unit(cross(x, [c[0]-a[0], c[1]-a[1], c[2]-a[2]]))
+    y = cross(z, x)
+    roll  = atan2(y[2], z[2])
+    pitch = atan2(-x[2], sqrt(y[2]*y[2] + z[2]*z[2]))
+    yaw   = atan2(x[1], x[0])
+    r = rpy2rotvec([roll, pitch, yaw])
+    return p[a[0], a[1], a[2], r[0], r[1], r[2]]
+  end
+
+  def grip_cmd(cmd):
+    socket_send_string(cmd, "gripper")
+    socket_send_byte(10, "gripper")
+    return socket_read_string("gripper", timeout=0.5)
+  end
+
+  def grip_activate():
+    if str_find(grip_cmd("GET ACT"), "ACT 1") < 0:
+      grip_cmd("SET ACT 1")
+      n = 0
+      while n < 20:
+        if str_find(grip_cmd("GET STA"), "STA 3") >= 0:
+          break
+        end
+        sleep(0.5)
+        n = n + 1
+      end
+    end
+    grip_cmd("SET GTO 1")
+    grip_cmd("SET SPE 128")
+    grip_cmd("SET FOR 50")
+  end
+
+  def grip_open():
+    if USE_GRIPPER:
+      grip_cmd("SET POS 0")
+      sleep(1.5)
+    else:
+      popup("OPEN the gripper with the Robotiq toolbar, then Continue.", "Gripper", False, False, blocking=True)
+    end
+  end
+
+  def grip_close():
+    if USE_GRIPPER:
+      grip_cmd("SET POS 255")
+      sleep(1.5)
+    else:
+      popup("CLOSE the gripper on the pen with the Robotiq toolbar, then Continue.", "Gripper", False, False, blocking=True)
+    end
+  end
+
+  ok = socket_open(HOST, PORT, "laptop")
+  if not ok:
+    popup("Could not connect to laptop. Start the receiver first.", "Error", False, True, blocking=True)
+    halt
+  end
+
+  popup("The gripper may open now and drop anything it is holding. Hold or remove any object in the gripper and keep hands clear of the fingers. Continue when safe.", "WARNING: gripper will move", True, False, blocking=True)
+
+  if USE_GRIPPER:
+    gok = socket_open("127.0.0.1", 63352, "gripper")
+    if gok:
+      grip_activate()
+    else:
+      popup("Robotiq URCap not reachable. You will open/close the gripper yourself.", "Gripper", True, False, blocking=True)
+      global USE_GRIPPER = False
+    end
+  end
+
+  if DO_STAND:
+    set_tcp(TCP_NOPEN)
+    grip_open()
+    popup("TCP = tcp-nopen, gripper open. Next: the pen stand. All 4 pens in their slots. For each point, put the open gripper around the pen, pointing straight down, fingers across the row.", "Pen stand points", False, False, blocking=True)
+    record("1", "tcp-nopen", "Point 1: open gripper around the pen in slot 1")
+    record("2", "tcp-nopen", "Point 2: open gripper around the pen in slot 2")
+    record("3", "tcp-nopen", "Point 3: open gripper around the pen in slot 3")
+    record("4", "tcp-nopen", "Point 4: open gripper around the pen in slot 4")
+  end
+
+  if DO_BOARD:
+    if USE_SCRIPT_FREEDRIVE:
+      freedrive_mode()
+    end
+    popup("Move the arm somewhere safe and hold a pen between the open fingers. Continue = arm locks and gripper CLOSES.", "Grip pen", False, False, blocking=True)
+    if USE_SCRIPT_FREEDRIVE:
+      end_freedrive_mode()
+    end
+    sleep(0.3)
+    grip_close()
+    popup("Pen gripped firmly? Continue to start the whiteboard measurement.", "Grip pen", False, False, blocking=True)
+
+    if GO_HOME:
+      popup("The arm now moves SLOWLY to the home pose. Keep clear, hand on the emergency stop. Continue to move.", "Home pose", True, False, blocking=True)
+      movej(HOME_Q, a=HOME_ACCEL, v=HOME_SPEED)
+    end
+
+    set_tcp(TCP_PEN)
+    popup("TCP = tcp-pen. Next: touch the pen tip to 3 board corners.", "Whiteboard", False, False, blocking=True)
+    o  = record("origin", "tcp-pen", "Touch pen to the TOP-LEFT corner (origin)")
+    xp = record("xaxis",  "tcp-pen", "Touch pen to the TOP-RIGHT corner (X axis)")
+    yp = record("yaxis",  "tcp-pen", "Touch pen to the BOTTOM-RIGHT corner (Y axis)")
+
+    wb = plane_pose([o[0], o[1], o[2]], [xp[0], xp[1], xp[2]], [yp[0], yp[1], yp[2]])
+    msg = str_cat("whiteboard;tcp-pen;null;", to_str(wb))
+    msg = str_cat(msg, ";null")
+    socket_send_line(msg, "laptop")
+  end
+
+  socket_close("laptop")
+  if USE_GRIPPER:
+    socket_close("gripper")
+  end
+
+  if DO_BOARD:
+    if GO_HOME:
+      popup("Data sent. The pen now backs 50 mm off the board, then the arm moves SLOWLY home. Keep clear. Continue to move.", "Return home", True, False, blocking=True)
+      movel(pose_trans(get_actual_tcp_pose(), p[0, 0, -0.05, 0, 0, 0]), a=0.1, v=0.03)
+      movej(HOME_Q, a=HOME_ACCEL, v=HOME_SPEED)
+    end
+  end
+  popup("Done, all data sent", "teach_whiteboard", False, False, blocking=True)
+end

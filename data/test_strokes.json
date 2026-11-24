@@ -1,0 +1,44 @@
+{
+  "units": "mm",
+  "strokes": [
+    {
+      "points": [
+        [
+          100,
+          500
+        ],
+        [
+          200,
+          500
+        ]
+      ],
+      "marker": "black",
+      "svg_color": "#000000",
+      "source": "test-1"
+    },
+    {
+      "points": [
+        [
+          160,
+          520
+        ],
+        [
+          200,
+          520
+        ]
+      ],
+      "marker": "black",
+      "svg_color": "#000000",
+      "source": "test-2"
+    }
+  ],
+  "board_width": 300,
+  "board_height": 600,
+  "placement": {
+    "x": 100,
+    "y": 500,
+    "width": 100,
+    "height": 20
+  },
+  "origin": "board top-left, x right, y down (same as SVG)"
+}

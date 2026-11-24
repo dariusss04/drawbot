@@ -1,0 +1,74 @@
+{
+  "units": "mm",
+  "strokes": [
+    {
+      "points": [
+        [
+          100,
+          500
+        ],
+        [
+          200,
+          500
+        ]
+      ],
+      "marker": "black",
+      "svg_color": "#000000",
+      "source": "test-1"
+    },
+    {
+      "points": [
+        [
+          100,
+          510
+        ],
+        [
+          200,
+          510
+        ]
+      ],
+      "marker": "orange",
+      "svg_color": "#ff0000",
+      "source": "test-2"
+    },
+    {
+      "points": [
+        [
+          100,
+          520
+        ],
+        [
+          200,
+          520
+        ]
+      ],
+      "marker": "purple",
+      "svg_color": "#0000ff",
+      "source": "test-3"
+    },
+    {
+      "points": [
+        [
+          100,
+          530
+        ],
+        [
+          200,
+          530
+        ]
+      ],
+      "marker": "green",
+      "svg_color": "#008000",
+      "source": "test-4"
+    }
+  ],
+  "board_width": 300,
+  "board_height": 600,
+  "placement": {
+    "x": 100,
+    "y": 500,
+    "width": 100,
+    "height": 30
+  },
+  "origin": "board top-left, x right, y down (same as SVG)"
+}
